@@ -69,7 +69,7 @@
     
     CGSize resolution;
     
-    int BLACK_THRESHHOLD = 75;
+    int BLACK_THRESHHOLD = 70;
     
     //loop thru time ranges to get sampling of feature.
     for (int range = 0; range < 11; range++)
@@ -150,8 +150,8 @@
                 
                 for (int row = 0; row < resolution.height; row++)                                   //iterate thru rows
                 {
-                    //reset mean
-                    UInt64 mean = 0;
+                    //count number of black pixels in each row
+                    int blackPixels = 0;
                     
                     for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
                     {
@@ -162,19 +162,16 @@
                         
                         UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
                         
-                        mean += pixelValue;
+                        if (pixelValue < BLACK_THRESHHOLD)
+                            blackPixels++;
+                        
                     }
-                    //find mean for each row of luma pixel buffer
-                    mean /= ceil(resolution.width);                                                       //get mean for each row
-                    
-                    if (mean <= BLACK_THRESHHOLD)                                                                  //set video signal top line and break if row is not black
-                    {
+                    //if X percentage of row is black then increment margin
+                    if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
                         videoSignal_TopRow++;
-                    }
                     else
-                    {
                         break;
-                    }
+
                 }
                 
                 //find bottom matte size
@@ -182,8 +179,8 @@
                 
                 for (int row = (resolution.height-1); row >= 0; row--)                                   //iterate thru rows
                 {
-                    //reset mean
-                    UInt64 mean = 0;
+                    //count number of black pixels in each row
+                    int blackPixels = 0;
                     
                     for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
                     {
@@ -194,21 +191,19 @@
                         
                         UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
                         
-                        mean += pixelValue;
+                        if (pixelValue < BLACK_THRESHHOLD)
+                            blackPixels++;
+                        
                     }
-                    //find mean for each row of luma pixel buffer
-                    mean /= ceil(resolution.width);                                                       //get mean for each row
                     
-                    if (mean <= BLACK_THRESHHOLD)                                                                  //  calculate AR if row is not black
-                    {
+                    //if X percentage of row is black then increment margin
+                    if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
                         videoSignal_BottomRow--;
-                    }
                     else
-                    {
                         break;
-                    }
-                    
                 }
+                
+                //calculate mean value for left/right margins
                 
                 //find left margin
                 int videoSignal_LeftCol = 0;
@@ -231,13 +226,9 @@
                     mean /= ceil(resolution.height);
                     
                     if (mean <= BLACK_THRESHHOLD)
-                    {
                         videoSignal_LeftCol++;
-                    }
                     else
-                    {
                         break;
-                    }
                 }
                 
                 
@@ -262,13 +253,9 @@
                     mean /= ceil(resolution.height);
                     
                     if (mean <= BLACK_THRESHHOLD)
-                    {
                         videoSignal_RightCol--;
-                    }
                     else
-                    {
                         break;
-                    }
                 }
                 
                 
