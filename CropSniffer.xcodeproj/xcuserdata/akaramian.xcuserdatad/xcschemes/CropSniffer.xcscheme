@@ -61,6 +61,12 @@
             ReferencedContainer = "container:CropSniffer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "/Volumes/Ingest/05-itunes-encoding/00-INCOMING/FROM_TAPEROOM/MickeyMouseClub_1977_C032.mov"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <AdditionalOptions>
       </AdditionalOptions>
    </LaunchAction>
