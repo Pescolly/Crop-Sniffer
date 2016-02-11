@@ -15,23 +15,6 @@
 #import <Foundation/Foundation.h>
 #import "MVFAssetHandler.h"
 
-#define VIDEOQC @"VIDEOQC"
-#define AUDIOQC @"AUDIOQC"
-#define VIDEOHEADERQC @"VIDEOHEADERQC"
-#define AUDIOHANDLEQC @"AUDIOHANDLEQC"
-#define AUDIOHANDLELENGTH @"AUDIOHANDLELENGTH"
-#define VIDEODROPOUTQC @"VIDEODROPOUTQC"
-#define SPECFRAMEWIDTH @"SPECFRAMEWIDTH"
-#define SPECFRAMEHEIGHT @"SPECFRAMEHEIGHT"
-#define SPECCOLORMATRIX @"SPECCOLORMATRIX"
-#define SPECCODEC @"SPECCODEC"
-#define SPECPIXELFORMAT @"SPECPIXELFORMAT"
-#define VIDEOCROPCHECK @"VIDEOCROPCHECK"
-#define VIDEOASPECTRATIO @"VIDEOASPECTRATIO"
-
-#define TEMPLATE_TRUE @"TRUE"
-#define TEMPLATE_FALSE @"FALSE"
-
 #define kAR_16X9    @1.78
 #define kAR_4X3     @1.33
 #define kAR_235     @2.35
@@ -50,7 +33,7 @@ int main(int argc, const char * argv[])
         NSArray *args = [[NSProcessInfo processInfo] arguments];
         if ([args count] < 2)
         {
-            fprintf(stdout, "Add a file to check and a minimum silence length in seconds\n");
+            fprintf(stdout, "Add a file to check...\n");
             exit(1);
         }
         NSString *incomingFile = args[1];      
@@ -61,8 +44,8 @@ int main(int argc, const char * argv[])
             exit(1);
         }
         
-         MVF_AssetHandler *handler = [[MVF_AssetHandler alloc] initWithFile:incomingFile];
-         [handler VideoFrameAspectRatioDetection];
+        MVF_AssetHandler *handler = [[MVF_AssetHandler alloc] initWithFile:incomingFile];
+        [handler VideoFrameAspectRatioDetection];
          
     }
     return 0;

@@ -69,8 +69,6 @@
     
     CGSize resolution;
     
-    int BLACK_THRESHHOLD = 70;
-    
     //loop thru time ranges to get sampling of feature.
     for (int range = 0; range < 11; range++)
     {
@@ -98,6 +96,8 @@
             
             if(sampleBuffer)
             {
+                int BLACK_THRESHHOLD = 75;
+                
                 //setup pixel buffer
                 CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
                 CVPixelBufferLockBaseAddress(pixelBuffer, 0);
@@ -131,19 +131,19 @@
                     lumaPixelBufferPos += 1;
                 }
                 
-/*
-                //find black threshold
-                for (int col = 0; col < resolution.width; col++)
+
+                //find image black by scanning frame
+                for (int col = resolution.width/10; col < (resolution.width * .9); col++)
                 {
                     UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-                    pixel += col + ((int)resolution.height * (int)resolution.width) / 2;                                                               //col(pixel) offset
+                    pixel += (col + (((int)resolution.height / 2) * (int)resolution.width));                                                               //col(pixel) offset
                     UInt16 pixelValue = *pixel >> 6;
                     if (pixelValue < BLACK_THRESHHOLD && pixelValue > 64)                      //set 64 as lowest possible black value
                     {
                         BLACK_THRESHHOLD = pixelValue;
                     }
                 }
-  */
+ 
                 
                 //find top matte size
                 int videoSignal_TopRow = 0;
