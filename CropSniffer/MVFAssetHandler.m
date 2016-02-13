@@ -1,5 +1,7 @@
 #import "MVFAssetHandler.h"
 
+#define RANGE_COUNT 10
+
 @implementation MVF_AssetHandler
 
 - (instancetype)initWithFile:(NSString *)inFilepathString;
@@ -16,11 +18,179 @@
     return self;
 }
 
+- (void *)getLumaPixelBuffer:(size_t)pixelBufferSize pixelBufferPos_p:(UInt16 **)pixelBufferPos_p
+{
+    //setup destination buffer for luma pixels (Y0 Y1 Y2 Y3)
+    size_t lumaPixelBufferSize = pixelBufferSize / 2;
+    void *lumaPixelBufferBase = malloc(lumaPixelBufferSize);
+    if (lumaPixelBufferBase == NULL)
+    {
+        NSLog(@"Coud not allocate memory for luma buffer");
+    }
+    //creation buffer for luma pixels
+    memset(lumaPixelBufferBase, 0, lumaPixelBufferSize);
+    UInt16 *lumaPixelBufferPos = lumaPixelBufferBase;
+    void *lumaPixelBufferEnd = lumaPixelBufferBase + lumaPixelBufferSize;
+    
+    //step pixel pointers thru memory, copy from main buffer to luma pixel buffer
+    while(lumaPixelBufferPos < (UInt16*)lumaPixelBufferEnd)                             //use UInt16 as word size
+    {
+        memcpy(lumaPixelBufferPos, *pixelBufferPos_p, 2);
+        *pixelBufferPos_p += 2;
+        lumaPixelBufferPos += 1;
+    }
+    return lumaPixelBufferBase;
+}
+
+- (void)findImageBlack:(int *)BLACK_THRESHHOLD_p resolution:(CGSize)resolution lumaPixelBufferBase:(void *)lumaPixelBufferBase
+{
+    //find image black by scanning frame within a safe zone
+    for (int col = resolution.width/10; col < (resolution.width * .9); col++)
+    {
+        for (int row = resolution.height/10; row < (resolution.height * .9); row++)
+        {
+            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                                                                  //get basepointer for pixel buffer
+            pixel += col;                                                                   //col offset
+            pixel += row * (int)resolution.width;                                        //row offset
+            UInt16 pixelValue = *pixel >> 6;
+            if (pixelValue < *BLACK_THRESHHOLD_p && pixelValue > 64)                                                           //set 64 as lowest possible black value
+                *BLACK_THRESHHOLD_p = pixelValue;
+        }
+    }
+}
+
+- (int)findTopMatte:(CGSize)resolution BLACK_THRESHHOLD:(int)BLACK_THRESHHOLD lumaPixelBufferBase:(void *)lumaPixelBufferBase
+{
+    //find top matte size
+    int videoSignal_TopRow = 0;
+    
+    for (int row = 0; row < resolution.height; row++)                                   //iterate thru rows
+    {
+        //count number of black pixels in each row
+        int blackPixels = 0;
+        
+        for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
+        {
+            //advance to next pixel and wrap around if column
+            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
+            pixel += ((int)row * (int)resolution.width);                                // row offset
+            pixel += col;                                                               //col(pixel) offset
+            
+            UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
+            
+            if (pixelValue < BLACK_THRESHHOLD)
+                blackPixels++;
+            
+        }
+        //if X percentage of row is black then increment margin
+        if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
+            videoSignal_TopRow++;
+        else
+            break;
+    }
+    return videoSignal_TopRow;
+}
+
+- (int)findBottomMatte:(CGSize)resolution BLACK_THRESHHOLD:(int)BLACK_THRESHHOLD lumaPixelBufferBase:(void *)lumaPixelBufferBase
+{
+    //find bottom matte size
+    int videoSignal_BottomRow = resolution.height;
+    
+    for (int row = (resolution.height-1); row >= 0; row--)                                   //iterate thru rows
+    {
+        //count number of black pixels in each row
+        int blackPixels = 0;
+        
+        for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
+        {
+            //advance to next pixel and wrap around if column
+            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
+            pixel += ((int)row * (int)resolution.width);                                // row offset
+            pixel += col;                                                               //col(pixel) offset
+            
+            UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
+            
+            if (pixelValue < BLACK_THRESHHOLD)
+                blackPixels++;
+            
+        }
+        
+        //if X percentage of row is black then increment margin
+        if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
+            videoSignal_BottomRow--;
+        else
+            break;
+    }
+    return videoSignal_BottomRow;
+}
+
+- (int)findLeftMatte:(CGSize)resolution BLACK_THRESHHOLD:(int)BLACK_THRESHHOLD lumaPixelBufferBase:(void *)lumaPixelBufferBase
+{
+    //find left margin
+    int videoSignal_LeftCol = 0;
+    
+    for (int col = 0; col < resolution.width; col++)
+    {
+        UInt64 mean = 0;
+        
+        for (int row = 0; row < resolution.height-1; row++)
+        {
+            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;
+            pixel += ((int)row * (int)resolution.width);
+            pixel += col;
+            
+            UInt16 pixelValue = *pixel >> 6;
+            
+            mean += pixelValue;
+        }
+        
+        mean /= ceil(resolution.height);
+        
+        if (mean <= BLACK_THRESHHOLD)
+            videoSignal_LeftCol++;
+        else
+            break;
+    }
+    return videoSignal_LeftCol;
+}
+
+- (int)findRightMatte:(CGSize)resolution BLACK_THRESHHOLD:(int)BLACK_THRESHHOLD lumaPixelBufferBase:(void *)lumaPixelBufferBase
+{
+    //find right margin
+    int videoSignal_RightCol = resolution.width;
+    
+    for (int col = resolution.width-1; col >= 0; col--)
+    {
+        UInt64 mean = 0;
+        
+        for (int row = 0; row < resolution.height-1; row++)
+        {
+            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;
+            pixel += ((int)row * (int)resolution.width);
+            pixel += col;
+            
+            UInt16 pixelValue = *pixel >> 6;
+            
+            mean += pixelValue;
+        }
+        
+        mean /= ceil(resolution.height);
+        
+        if (mean <= BLACK_THRESHHOLD)
+            videoSignal_RightCol--;
+        else
+            break;
+    }
+    return videoSignal_RightCol;
+}
+
 -(float) VideoFrameAspectRatioDetection
 {
     NSLog(@"Starting aspect ratio calculation");
     CMTime duration = self->asset.duration;
-    CMTime qcDuration = CMTimeMake(duration.value/1000, self->asset.duration.timescale);
+    CMTime qcDuration = CMTimeMake(duration.value/10, self->asset.duration.timescale);
+    
+    
     
     CMTimeRange range1 = CMTimeRangeMake(kCMTimeZero, qcDuration);
     
@@ -51,10 +221,7 @@
     CMTime range10Start = CMTimeMake(duration.value*.9, duration.timescale);
     CMTimeRange range10 = CMTimeRangeMake(range10Start, qcDuration);
     
-    CMTime range11Start = CMTimeMake(duration.value*.99, duration.timescale);
-    CMTimeRange range11 = CMTimeRangeMake(range11Start, qcDuration);
-    
-    CMTimeRange timeRanges[] = {range1, range2, range3, range4, range5, range6, range7, range8, range9, range10, range11};
+    CMTimeRange timeRanges[RANGE_COUNT] = {range1, range2, range3, range4, range5, range6, range7, range8, range9, range10};
     
     
     
@@ -70,7 +237,7 @@
     CGSize resolution;
     
     //loop thru time ranges to get sampling of feature.
-    for (int range = 0; range < 11; range++)
+    for (int range = 0; range < RANGE_COUNT; range++)
     {
         //setup asset reader
         NSError *error;
@@ -85,7 +252,6 @@
         
         //add output to reader
         [reader addOutput:trackOutput];
-        
         reader.timeRange = timeRanges[range];
         //start reading
         [reader startReading];
@@ -96,6 +262,7 @@
             
             if(sampleBuffer)
             {
+        
                 int BLACK_THRESHHOLD = 75;
                 
                 //setup pixel buffer
@@ -111,152 +278,21 @@
                 UInt16 *pixelBufferPos = pixelBufferBaseAddress;
                 pixelBufferPos++;
                 
-                //setup destination buffer for luma pixels (Y0 Y1 Y2 Y3)
-                size_t lumaPixelBufferSize = pixelBufferSize / 2;
-                void *lumaPixelBufferBase = malloc(lumaPixelBufferSize);
-                if (lumaPixelBufferBase == NULL)
-                {
-                    NSLog(@"Coud not allocate memory for luma buffer");
-                }
-                //creation buffer for luma pixels
-                memset(lumaPixelBufferBase, 0, lumaPixelBufferSize);
-                UInt16 *lumaPixelBufferPos = lumaPixelBufferBase;
-                void *lumaPixelBufferEnd = lumaPixelBufferBase + lumaPixelBufferSize;
-                
-                //step pixel pointers thru memory, copy from main buffer to luma pixel buffer
-                while(lumaPixelBufferPos < (UInt16*)lumaPixelBufferEnd)                             //use UInt16 as word size
-                {
-                    memcpy(lumaPixelBufferPos, pixelBufferPos, 2);
-                    pixelBufferPos += 2;
-                    lumaPixelBufferPos += 1;
-                }
+                void *lumaPixelBufferBase;
+                lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
                 
 
-                //find image black by scanning frame
-                for (int col = resolution.width/10; col < (resolution.width * .9); col++)
-                {
-                    UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-                    pixel += (col + (((int)resolution.height / 2) * (int)resolution.width));                                                               //col(pixel) offset
-                    UInt16 pixelValue = *pixel >> 6;
-                    if (pixelValue < BLACK_THRESHHOLD && pixelValue > 64)                      //set 64 as lowest possible black value
-                    {
-                        BLACK_THRESHHOLD = pixelValue;
-                    }
-                }
- 
-                
-                //find top matte size
-                int videoSignal_TopRow = 0;
-                
-                for (int row = 0; row < resolution.height; row++)                                   //iterate thru rows
-                {
-                    //count number of black pixels in each row
-                    int blackPixels = 0;
-                    
-                    for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
-                    {
-                        //advance to next pixel and wrap around if column
-                        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-                        pixel += ((int)row * (int)resolution.width);                                // row offset
-                        pixel += col;                                                               //col(pixel) offset
-                        
-                        UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
-                        
-                        if (pixelValue < BLACK_THRESHHOLD)
-                            blackPixels++;
-                        
-                    }
-                    //if X percentage of row is black then increment margin
-                    if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
-                        videoSignal_TopRow++;
-                    else
-                        break;
-
-                }
-                
-                //find bottom matte size
-                int videoSignal_BottomRow = resolution.height;
-                
-                for (int row = (resolution.height-1); row >= 0; row--)                                   //iterate thru rows
-                {
-                    //count number of black pixels in each row
-                    int blackPixels = 0;
-                    
-                    for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
-                    {
-                        //advance to next pixel and wrap around if column
-                        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-                        pixel += ((int)row * (int)resolution.width);                                // row offset
-                        pixel += col;                                                               //col(pixel) offset
-                        
-                        UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
-                        
-                        if (pixelValue < BLACK_THRESHHOLD)
-                            blackPixels++;
-                        
-                    }
-                    
-                    //if X percentage of row is black then increment margin
-                    if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
-                        videoSignal_BottomRow--;
-                    else
-                        break;
-                }
-                
-                //calculate mean value for left/right margins
-                
-                //find left margin
-                int videoSignal_LeftCol = 0;
-                
-                for (int col = 0; col < resolution.width; col++)
-                {
-                    UInt64 mean = 0;
-                    
-                    for (int row = 0; row < resolution.height-1; row++)
-                    {
-                        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;
-                        pixel += ((int)row * (int)resolution.width);
-                        pixel += col;
-                        
-                        UInt16 pixelValue = *pixel >> 6;
-                        
-                        mean += pixelValue;
-                    }
-                    
-                    mean /= ceil(resolution.height);
-                    
-                    if (mean <= BLACK_THRESHHOLD)
-                        videoSignal_LeftCol++;
-                    else
-                        break;
-                }
+                [self findImageBlack:&BLACK_THRESHHOLD resolution:resolution lumaPixelBufferBase:lumaPixelBufferBase];
                 
                 
-                //find right margin
-                int videoSignal_RightCol = resolution.width;
                 
-                for (int col = resolution.width-1; col >= 0; col--)
-                {
-                    UInt64 mean = 0;
-                    
-                    for (int row = 0; row < resolution.height-1; row++)
-                    {
-                        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;
-                        pixel += ((int)row * (int)resolution.width);
-                        pixel += col;
-                        
-                        UInt16 pixelValue = *pixel >> 6;
-                        
-                        mean += pixelValue;
-                    }
-                    
-                    mean /= ceil(resolution.height);
-                    
-                    if (mean <= BLACK_THRESHHOLD)
-                        videoSignal_RightCol--;
-                    else
-                        break;
-                }
+                int videoSignal_TopRow = [self findTopMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                
+                int videoSignal_BottomRow = [self findBottomMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                
+                int videoSignal_LeftCol = [self findLeftMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                
+                int videoSignal_RightCol = [self findRightMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
                 
                 
                 //put margins into dictionaries for sorting later after all frames have been analyzed
@@ -306,8 +342,8 @@
                 [videoSignal_RightMarginSize
                  
                  
-                 setValue:@(newRightColCount) forKey:rightMarginString];
-                
+                setValue:@(newRightColCount) forKey:rightMarginString];
+        
                 //release buffers and move onto next frame
                 CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
                 CMSampleBufferInvalidate(sampleBuffer);
@@ -316,17 +352,12 @@
             }
         }
         
-        /*        if (reader.status == AVAssetReaderStatusCompleted)
-         {
-         
-         }
-         */
+
         if (reader.status == AVAssetReaderStatusFailed)
         {
             NSLog(@"AR detection failed...");
         }
     }
-    
     
     //calcuate resolution
     NSLog(@"Encoded vertical resolution: %d", (int)resolution.height);
@@ -371,7 +402,6 @@
     //calculate approx. aspect ratio
     float predictedAspectRatio = (float)finalHorizontalResolution / (float)finalVerticalResolution;
     NSLog(@"Predicted aspect ratio: %.02f", predictedAspectRatio);
-    
     
     return predictedAspectRatio;
 }
