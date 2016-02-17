@@ -23,6 +23,13 @@
 @private NSString *codec;
 @private FourCharCode expectedFormat;
 @private AVURLAsset *asset;
+@private NSMutableDictionary *videoSignal_VerResolutionDictionary;
+@private NSMutableDictionary *videoSignal_HorResolutionDictionary;
+@private NSMutableDictionary *videoSignal_TopMarginSize;
+@private NSMutableDictionary *videoSignal_BottomMarginSize;
+@private NSMutableDictionary *videoSignal_LeftMarginSize;
+@private NSMutableDictionary *videoSignal_RightMarginSize;
+    
 }
 
 -(instancetype)initWithFile:(NSString *)inFilepathString;

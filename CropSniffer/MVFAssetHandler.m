@@ -1,8 +1,8 @@
 #import "MVFAssetHandler.h"
 
 #define RANGE_COUNT 10
-#define QC_DURATION_FRACTION 1000
-#define BLACK_THRESHHOLD_MACRO 68
+#define QC_DURATION_FRACTION 100
+#define BLACK_THRESHHOLD_MACRO 75
 #define HD_VIDEO_BLACK 64
 
 @implementation MVF_AssetHandler
@@ -14,8 +14,17 @@
     {
         //setup asset
         NSURL *mediaURL = [NSURL fileURLWithPath:inFilepathString];
-        
         self->asset = [[AVURLAsset alloc] initWithURL:mediaURL options:nil];
+
+        //setup dictionaries to store video start/end pixel data
+        self->videoSignal_VerResolutionDictionary = [[NSMutableDictionary alloc] init];
+        self->videoSignal_HorResolutionDictionary = [[NSMutableDictionary alloc] init];
+        
+        //setup dictionarires to hold size of margins
+        self->videoSignal_LeftMarginSize = [[NSMutableDictionary alloc] init];
+        self->videoSignal_RightMarginSize = [[NSMutableDictionary alloc] init];
+        self->videoSignal_BottomMarginSize = [[NSMutableDictionary alloc] init];
+        self->videoSignal_TopMarginSize = [[NSMutableDictionary alloc] init];
         
     }
     return self;
@@ -201,15 +210,6 @@
         timeRanges[counter] = qcRange;
     }
     
-    //setup dictionaries to store video start/end pixel data
-    NSMutableDictionary *videoSignal_VerResolutionDictionary = [[NSMutableDictionary alloc] init];
-    NSMutableDictionary *videoSignal_HorResolutionDictionary = [[NSMutableDictionary alloc] init];
-    
-    NSMutableDictionary *videoSignal_TopMarginSize = [[NSMutableDictionary alloc] init];
-    NSMutableDictionary *videoSignal_BottomMarginSize = [[NSMutableDictionary alloc] init];
-    NSMutableDictionary *videoSignal_LeftMarginSize = [[NSMutableDictionary alloc] init];
-    NSMutableDictionary *videoSignal_RightMarginSize = [[NSMutableDictionary alloc] init];
-    
     //setup queue
     dispatch_queue_t q = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     dispatch_group_t dispatchGroup = dispatch_group_create();
@@ -292,6 +292,19 @@
                     newBottomRowCount++;
                     [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
                     
+                    // put left and right margin into dictionary
+                    NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
+                    NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
+                    int newleftColCount = [leftColCount intValue];
+                    newleftColCount++;
+                    [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
+                    
+                    NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
+                    NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
+                    int newRightColCount = [rightColCount intValue];
+                    newRightColCount++;
+                    [videoSignal_RightMarginSize setValue:@(newRightColCount) forKey:rightMarginString];
+            
                     
                     //put final vertical resolution for frame into dictionary
                     int videoSignal_VertResolution = ((resolution.height - videoSignal_TopRow) - (resolution.height - videoSignal_BottomRow));
@@ -310,19 +323,7 @@
                     newHorizResolutionCount++;
                     [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
                     
-                    // put left and right margin into dictionary
-                    NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
-                    NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
-                    int newleftColCount = [leftColCount intValue];
-                    newleftColCount++;
-                    [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
                     
-                    NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
-                    NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
-                    int newRightColCount = [rightColCount intValue];
-                    newRightColCount++;
-                    [videoSignal_RightMarginSize setValue:@(newRightColCount) forKey:rightMarginString];
-            
              //release buffers and move onto next frame
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
                     CMSampleBufferInvalidate(sampleBuffer);
