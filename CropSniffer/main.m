@@ -36,7 +36,13 @@ int main(int argc, const char * argv[])
             fprintf(stdout, "Add a file to check...\n");
             exit(1);
         }
-        NSString *incomingFile = args[1];      
+        //get first argument as file name
+        NSString *incomingFile = args[1];
+        //append any remaining parts seperated by white space
+        for (int i = 2; i < [args count]; i++)
+        {
+            incomingFile = [[incomingFile stringByAppendingString:@" "] stringByAppendingString:args[i]];
+        }
         
         if(![[NSFileManager defaultManager] fileExistsAtPath:incomingFile])
         {

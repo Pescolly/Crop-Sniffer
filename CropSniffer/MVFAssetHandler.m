@@ -224,7 +224,7 @@
         NSError *error;
         AVAssetReader *reader = [[AVAssetReader alloc] initWithAsset:self->asset error:&error];
         CMTimeRange currentRange = timeRanges[range];
-        
+
         //add range to queue, add queue to dispatch group
         dispatch_group_async(dispatchGroup, q, ^{
             //setup asset track
@@ -326,11 +326,15 @@
                         int newHorizResolutionCount = [horizResolutionCount intValue];
                         newHorizResolutionCount++;
                         [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
+                        
+                        //signal that dictionary write has completed
                         dispatch_semaphore_signal(dictionaryWriteDone);
                     });
 
+                    //wait for async dictionary write to finish
                     dispatch_semaphore_wait(dictionaryWriteDone, DISPATCH_TIME_FOREVER);
-             //release buffers and move onto next frame
+
+                    //release buffers and move onto next frame
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
                     CMSampleBufferInvalidate(sampleBuffer);
                     CFRelease(sampleBuffer);
@@ -344,11 +348,10 @@
                 NSLog(@"AR detection failed...");
             }
         });
-                       
+
+        
     }
-    
     dispatch_group_wait(dispatchGroup, DISPATCH_TIME_FOREVER);
-    
     
     NSArray *sortedKeys = [videoSignal_VerResolutionDictionary keysSortedByValueUsingSelector:@selector(compare:)];
     int finalVerticalResolution = [[sortedKeys lastObject] intValue];
