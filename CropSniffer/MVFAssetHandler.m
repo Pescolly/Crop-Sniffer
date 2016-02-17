@@ -265,10 +265,10 @@
                     lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
                     
 
+                    //base black level in image in case it is lower than set threshold
                     [self findImageBlack:&BLACK_THRESHHOLD resolution:resolution lumaPixelBufferBase:lumaPixelBufferBase];
-//NSLog(@"Black: %d", BLACK_THRESHHOLD);
                     
-                    
+                    //get first of video signal after margins
                     int videoSignal_TopRow = [self findTopMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
                     
                     int videoSignal_BottomRow = [self findBottomMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
@@ -277,11 +277,13 @@
                     
                     int videoSignal_RightCol = [self findRightMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
                     
+                    //create semaphore for async thread to call
                     
+                    dispatch_semaphore_t dictionaryWriteDone = dispatch_semaphore_create(0);
                     //put margins into dictionaries for sorting later after all frames have been analyzed
-                    
-                    // put top and bottom margin into dictionary
+                    //add block to dictionary write queue to prevent memory deadlock
                     dispatch_async(dictionaryWriteQ, ^{
+                        // put top and bottom margin into dictionary
                         NSString *topMarginString = [@(videoSignal_TopRow) stringValue];
                         NSNumber *topRowCount = videoSignal_TopMarginSize[topMarginString];
                         int newTopRowCount = [topRowCount intValue];
@@ -324,9 +326,10 @@
                         int newHorizResolutionCount = [horizResolutionCount intValue];
                         newHorizResolutionCount++;
                         [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
-   
+                        dispatch_semaphore_signal(dictionaryWriteDone);
                     });
-                    
+
+                    dispatch_semaphore_wait(dictionaryWriteDone, DISPATCH_TIME_FOREVER);
              //release buffers and move onto next frame
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
                     CMSampleBufferInvalidate(sampleBuffer);
@@ -345,6 +348,7 @@
     }
     
     dispatch_group_wait(dispatchGroup, DISPATCH_TIME_FOREVER);
+    
     
     NSArray *sortedKeys = [videoSignal_VerResolutionDictionary keysSortedByValueUsingSelector:@selector(compare:)];
     int finalVerticalResolution = [[sortedKeys lastObject] intValue];
