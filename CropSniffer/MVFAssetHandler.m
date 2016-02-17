@@ -2,7 +2,7 @@
 
 #define RANGE_COUNT 10
 #define QC_DURATION_FRACTION 1000
-#define BLACK_THRESHHOLD_MACRO 75
+#define BLACK_THRESHHOLD_MACRO 70
 #define HD_VIDEO_BLACK 64
 
 @implementation MVF_AssetHandler
@@ -80,18 +80,21 @@
     {
         //count number of black pixels in each row
         int blackPixels = 0;
+
+        //get pointer to current row
+        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
+        pixel += ((int)row * (int)resolution.width);                                // row offset
         
         for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
         {
-            //advance to next pixel and wrap around if column
-            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-            pixel += ((int)row * (int)resolution.width);                                // row offset
-            pixel += col;                                                               //col(pixel) offset
-            
+            //advance to next pixel in row
+            pixel ++;                                                               //col(pixel) offset
             UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
             
             if (pixelValue < BLACK_THRESHHOLD)
                 blackPixels++;
+            if (pixelValue > BLACK_THRESHHOLD)
+                break;
             
         }
         //if X percentage of row is black then increment margin
@@ -112,18 +115,20 @@
     {
         //count number of black pixels in each row
         int blackPixels = 0;
+        UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
+        pixel += ((int)row * (int)resolution.width);                                // row offset
         
         for (int col = 0; col < resolution.width; col++)                                //iterate thru columns
         {
             //advance to next pixel and wrap around if column
-            UInt16 *pixel = (UInt16 *)lumaPixelBufferBase;                              //get basepointer for pixel buffer
-            pixel += ((int)row * (int)resolution.width);                                // row offset
-            pixel += col;                                                               //col(pixel) offset
+            pixel ++;                                                               //col(pixel) offset
             
             UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
             
             if (pixelValue < BLACK_THRESHHOLD)
                 blackPixels++;
+            if (pixelValue > BLACK_THRESHHOLD)
+                break;
         }
         //if X percentage of row is black then increment margin
         if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
@@ -312,20 +317,26 @@
                         
                         //put final vertical resolution for frame into dictionary
                         int videoSignal_VertResolution = ((resolution.height - videoSignal_TopRow) - (resolution.height - videoSignal_BottomRow));
-                        NSString *videoSignal_VertResolutionString = [@(videoSignal_VertResolution) stringValue];
-                        NSNumber *vertResolutionCount = videoSignal_VerResolutionDictionary[videoSignal_VertResolutionString];
-                        int newVertResolutionCount = [vertResolutionCount intValue];
-                        newVertResolutionCount++;
-                        [videoSignal_VerResolutionDictionary setValue:@(newVertResolutionCount) forKey:videoSignal_VertResolutionString];
-                        
+                        if (videoSignal_VertResolution > 0)
+                        {
+                            NSString *videoSignal_VertResolutionString = [@(videoSignal_VertResolution) stringValue];
+                            NSNumber *vertResolutionCount = videoSignal_VerResolutionDictionary[videoSignal_VertResolutionString];
+                            int newVertResolutionCount = [vertResolutionCount intValue];
+                            newVertResolutionCount++;
+                            [videoSignal_VerResolutionDictionary setValue:@(newVertResolutionCount) forKey:videoSignal_VertResolutionString];
+                        }
                         
                         //put final horizontal resolution for frame into dictionary
                         int videoSignal_HorizResolution = ((resolution.height - videoSignal_LeftCol) - (resolution.height - videoSignal_RightCol));
-                        NSString *videoSignal_HorizResolutionString = [@(videoSignal_HorizResolution) stringValue];
-                        NSNumber *horizResolutionCount = videoSignal_HorResolutionDictionary[videoSignal_HorizResolutionString];
-                        int newHorizResolutionCount = [horizResolutionCount intValue];
-                        newHorizResolutionCount++;
-                        [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
+                        if(videoSignal_HorizResolution > 0)
+                        {
+                            NSString *videoSignal_HorizResolutionString = [@(videoSignal_HorizResolution) stringValue];
+                            NSNumber *horizResolutionCount = videoSignal_HorResolutionDictionary[videoSignal_HorizResolutionString];
+                            int newHorizResolutionCount = [horizResolutionCount intValue];
+                            newHorizResolutionCount++;
+                            [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
+                            
+                        }
                         
                         //signal that dictionary write has completed
                         dispatch_semaphore_signal(dictionaryWriteDone);
