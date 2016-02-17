@@ -1,6 +1,9 @@
 #import "MVFAssetHandler.h"
 
 #define RANGE_COUNT 10
+#define QC_DURATION_FRACTION 1000
+#define BLACK_THRESHHOLD_MACRO 68
+#define HD_VIDEO_BLACK 64
 
 @implementation MVF_AssetHandler
 
@@ -53,7 +56,7 @@
             pixel += col;                                                                   //col offset
             pixel += row * (int)resolution.width;                                        //row offset
             UInt16 pixelValue = *pixel >> 6;
-            if (pixelValue < *BLACK_THRESHHOLD_p && pixelValue > 64)                                                           //set 64 as lowest possible black value
+            if (pixelValue < *BLACK_THRESHHOLD_p && pixelValue > HD_VIDEO_BLACK)                                                           //set 64 as lowest possible black value
                 *BLACK_THRESHHOLD_p = pixelValue;
         }
     }
@@ -112,9 +115,7 @@
             
             if (pixelValue < BLACK_THRESHHOLD)
                 blackPixels++;
-            
         }
-        
         //if X percentage of row is black then increment margin
         if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
             videoSignal_BottomRow--;
@@ -188,42 +189,17 @@
 {
     NSLog(@"Starting aspect ratio calculation");
     CMTime duration = self->asset.duration;
-    CMTime qcDuration = CMTimeMake(duration.value/10, self->asset.duration.timescale);
+    CMTime qcDuration = CMTimeMake(duration.value/QC_DURATION_FRACTION, self->asset.duration.timescale);
     
-    
-    
-    CMTimeRange range1 = CMTimeRangeMake(kCMTimeZero, qcDuration);
-    
-    CMTime range2Start = CMTimeMake(duration.value*.1, duration.timescale);
-    CMTimeRange range2 = CMTimeRangeMake(range2Start, qcDuration);
-    
-    CMTime range3Start = CMTimeMake(duration.value*.2, duration.timescale);
-    CMTimeRange range3 = CMTimeRangeMake(range3Start, qcDuration);
-    
-    CMTime range4Start = CMTimeMake(duration.value*.3, duration.timescale);
-    CMTimeRange range4 = CMTimeRangeMake(range4Start, qcDuration);
-    
-    CMTime range5Start = CMTimeMake(duration.value*.4, duration.timescale);
-    CMTimeRange range5 = CMTimeRangeMake(range5Start, qcDuration);
-    
-    CMTime range6Start = CMTimeMake(duration.value*.5, duration.timescale);
-    CMTimeRange range6 = CMTimeRangeMake(range6Start, qcDuration);
-    
-    CMTime range7Start = CMTimeMake(duration.value*.6, duration.timescale);
-    CMTimeRange range7 = CMTimeRangeMake(range7Start, qcDuration);
-    
-    CMTime range8Start = CMTimeMake(duration.value*.7, duration.timescale);
-    CMTimeRange range8 = CMTimeRangeMake(range8Start, qcDuration);
-    
-    CMTime range9Start = CMTimeMake(duration.value*.8, duration.timescale);
-    CMTimeRange range9 = CMTimeRangeMake(range9Start, qcDuration);
-    
-    CMTime range10Start = CMTimeMake(duration.value*.9, duration.timescale);
-    CMTimeRange range10 = CMTimeRangeMake(range10Start, qcDuration);
-    
-    CMTimeRange timeRanges[RANGE_COUNT] = {range1, range2, range3, range4, range5, range6, range7, range8, range9, range10};
-    
-    
+    //setup ranges for QC
+    CMTimeRange timeRanges[RANGE_COUNT];
+    for (int counter = 0; counter < RANGE_COUNT; counter++)
+    {
+        int64_t rangeTime = (int64_t)((float)duration.value * ((float)counter/RANGE_COUNT));
+        CMTime rangeStartTime = CMTimeMake(rangeTime, duration.timescale);
+        CMTimeRange qcRange = CMTimeRangeMake(rangeStartTime, qcDuration);
+        timeRanges[counter] = qcRange;
+    }
     
     //setup dictionaries to store video start/end pixel data
     NSMutableDictionary *videoSignal_VerResolutionDictionary = [[NSMutableDictionary alloc] init];
@@ -234,7 +210,9 @@
     NSMutableDictionary *videoSignal_LeftMarginSize = [[NSMutableDictionary alloc] init];
     NSMutableDictionary *videoSignal_RightMarginSize = [[NSMutableDictionary alloc] init];
     
-    CGSize resolution;
+    //setup queue
+    dispatch_queue_t q = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_group_t dispatchGroup = dispatch_group_create();
     
     //loop thru time ranges to get sampling of feature.
     for (int range = 0; range < RANGE_COUNT; range++)
@@ -242,131 +220,131 @@
         //setup asset reader
         NSError *error;
         AVAssetReader *reader = [[AVAssetReader alloc] initWithAsset:self->asset error:&error];
+        CMTimeRange currentRange = timeRanges[range];
         
-        //setup asset track
-        AVAssetTrack *videoTrack = [[self->asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
-        
-        //setup track output
-        NSDictionary *outputSettings = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr16] forKey:(id)kCVPixelBufferPixelFormatTypeKey];
-        AVAssetReaderTrackOutput *trackOutput = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings];
-        
-        //add output to reader
-        [reader addOutput:trackOutput];
-        reader.timeRange = timeRanges[range];
-        //start reading
-        [reader startReading];
-        
-        while(reader.status == AVAssetReaderStatusReading)
-        {
-            CMSampleBufferRef sampleBuffer = [trackOutput copyNextSampleBuffer];
+        //add range to queue, add queue to dispatch group
+        dispatch_group_async(dispatchGroup, q, ^{
             
-            if(sampleBuffer)
+        
+            //setup asset track
+            AVAssetTrack *videoTrack = [[self->asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+            
+            //setup track output
+            NSDictionary *outputSettings = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr16] forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+            AVAssetReaderTrackOutput *trackOutput = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings];
+            
+            //add output to reader
+            [reader addOutput:trackOutput];
+            reader.timeRange = currentRange;
+            //start reading
+            [reader startReading];
+            
+            while(reader.status == AVAssetReaderStatusReading)
             {
-        
-                int BLACK_THRESHHOLD = 75;
+                CMSampleBufferRef sampleBuffer = [trackOutput copyNextSampleBuffer];
                 
-                //setup pixel buffer
-                CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-                CVPixelBufferLockBaseAddress(pixelBuffer, 0);
-                
-                //setup image property vars
-                resolution = CGSizeMake(CVPixelBufferGetWidth(pixelBuffer), CVPixelBufferGetHeight(pixelBuffer));
-                
-                //setup source buffer (Cr Y0 Cb Y1)
-                size_t pixelBufferSize = CVPixelBufferGetDataSize(pixelBuffer);
-                void *pixelBufferBaseAddress = (UInt16 *)CVPixelBufferGetBaseAddress(pixelBuffer);
-                UInt16 *pixelBufferPos = pixelBufferBaseAddress;
-                pixelBufferPos++;
-                
-                void *lumaPixelBufferBase;
-                lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
-                
+                if(sampleBuffer)
+                {
+                    int BLACK_THRESHHOLD = BLACK_THRESHHOLD_MACRO;
+                    
+                    //setup pixel buffer
+                    CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+                    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+                    
+                    //setup image property vars
+                    CGSize resolution = CGSizeMake(CVPixelBufferGetWidth(pixelBuffer), CVPixelBufferGetHeight(pixelBuffer));
+                    
+                    //setup source buffer (Cr Y0 Cb Y1)
+                    size_t pixelBufferSize = CVPixelBufferGetDataSize(pixelBuffer);
+                    void *pixelBufferBaseAddress = (UInt16 *)CVPixelBufferGetBaseAddress(pixelBuffer);
+                    UInt16 *pixelBufferPos = pixelBufferBaseAddress;
+                    pixelBufferPos++;
+                    
+                    void *lumaPixelBufferBase;
+                    lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
+                    
 
-                [self findImageBlack:&BLACK_THRESHHOLD resolution:resolution lumaPixelBufferBase:lumaPixelBufferBase];
-                
-                
-                
-                int videoSignal_TopRow = [self findTopMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
-                
-                int videoSignal_BottomRow = [self findBottomMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
-                
-                int videoSignal_LeftCol = [self findLeftMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
-                
-                int videoSignal_RightCol = [self findRightMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
-                
-                
-                //put margins into dictionaries for sorting later after all frames have been analyzed
-                
-                // put top and bottom margin into dictionary
-                NSString *topMarginString = [@(videoSignal_TopRow) stringValue];
-                NSNumber *topRowCount = videoSignal_TopMarginSize[topMarginString];
-                int newTopRowCount = [topRowCount intValue];
-                newTopRowCount++;
-                [videoSignal_TopMarginSize setValue:@(newTopRowCount) forKey:topMarginString];
-                
-                NSString *bottomMarginString = [@(resolution.height - videoSignal_BottomRow) stringValue];
-                NSNumber *bottomRowCount = videoSignal_BottomMarginSize[bottomMarginString];
-                int newBottomRowCount = [bottomRowCount intValue];
-                newBottomRowCount++;
-                [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
-                
-                
-                //put final vertical resolution for frame into dictionary
-                int videoSignal_VertResolution = ((resolution.height - videoSignal_TopRow) - (resolution.height - videoSignal_BottomRow));
-                NSString *videoSignal_VertResolutionString = [@(videoSignal_VertResolution) stringValue];
-                NSNumber *vertResolutionCount = videoSignal_VerResolutionDictionary[videoSignal_VertResolutionString];
-                int newVertResolutionCount = [vertResolutionCount intValue];
-                newVertResolutionCount++;
-                [videoSignal_VerResolutionDictionary setValue:@(newVertResolutionCount) forKey:videoSignal_VertResolutionString];
-                
-                
-                //put final horizontal resolution for frame into dictionary
-                int videoSignal_HorizResolution = ((resolution.height - videoSignal_LeftCol) - (resolution.height - videoSignal_RightCol));
-                NSString *videoSignal_HorizResolutionString = [@(videoSignal_HorizResolution) stringValue];
-                NSNumber *horizResolutionCount = videoSignal_HorResolutionDictionary[videoSignal_HorizResolutionString];
-                int newHorizResolutionCount = [horizResolutionCount intValue];
-                newHorizResolutionCount++;
-                [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
-                
-                // put left and right margin into dictionary
-                NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
-                NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
-                int newleftColCount = [leftColCount intValue];
-                newleftColCount++;
-                [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
-                
-                NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
-                NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
-                int newRightColCount = [rightColCount intValue];
-                newRightColCount++;
-                [videoSignal_RightMarginSize
-                 
-                 
-                setValue:@(newRightColCount) forKey:rightMarginString];
-        
-                //release buffers and move onto next frame
-                CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
-                CMSampleBufferInvalidate(sampleBuffer);
-                CFRelease(sampleBuffer);
-                free(lumaPixelBufferBase);
+                    [self findImageBlack:&BLACK_THRESHHOLD resolution:resolution lumaPixelBufferBase:lumaPixelBufferBase];
+//NSLog(@"Black: %d", BLACK_THRESHHOLD);
+                    
+                    
+                    int videoSignal_TopRow = [self findTopMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                    
+                    int videoSignal_BottomRow = [self findBottomMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                    
+                    int videoSignal_LeftCol = [self findLeftMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                    
+                    int videoSignal_RightCol = [self findRightMatte:resolution BLACK_THRESHHOLD:BLACK_THRESHHOLD lumaPixelBufferBase:lumaPixelBufferBase];
+                    
+                    
+                    //put margins into dictionaries for sorting later after all frames have been analyzed
+                    
+                    // put top and bottom margin into dictionary
+                    NSString *topMarginString = [@(videoSignal_TopRow) stringValue];
+                    NSNumber *topRowCount = videoSignal_TopMarginSize[topMarginString];
+                    int newTopRowCount = [topRowCount intValue];
+                    newTopRowCount++;
+                    [videoSignal_TopMarginSize setValue:@(newTopRowCount) forKey:topMarginString];
+                    
+                    NSString *bottomMarginString = [@(resolution.height - videoSignal_BottomRow) stringValue];
+                    NSNumber *bottomRowCount = videoSignal_BottomMarginSize[bottomMarginString];
+                    int newBottomRowCount = [bottomRowCount intValue];
+                    newBottomRowCount++;
+                    [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
+                    
+                    
+                    //put final vertical resolution for frame into dictionary
+                    int videoSignal_VertResolution = ((resolution.height - videoSignal_TopRow) - (resolution.height - videoSignal_BottomRow));
+                    NSString *videoSignal_VertResolutionString = [@(videoSignal_VertResolution) stringValue];
+                    NSNumber *vertResolutionCount = videoSignal_VerResolutionDictionary[videoSignal_VertResolutionString];
+                    int newVertResolutionCount = [vertResolutionCount intValue];
+                    newVertResolutionCount++;
+                    [videoSignal_VerResolutionDictionary setValue:@(newVertResolutionCount) forKey:videoSignal_VertResolutionString];
+                    
+                    
+                    //put final horizontal resolution for frame into dictionary
+                    int videoSignal_HorizResolution = ((resolution.height - videoSignal_LeftCol) - (resolution.height - videoSignal_RightCol));
+                    NSString *videoSignal_HorizResolutionString = [@(videoSignal_HorizResolution) stringValue];
+                    NSNumber *horizResolutionCount = videoSignal_HorResolutionDictionary[videoSignal_HorizResolutionString];
+                    int newHorizResolutionCount = [horizResolutionCount intValue];
+                    newHorizResolutionCount++;
+                    [videoSignal_HorResolutionDictionary setValue:@(newHorizResolutionCount) forKey:videoSignal_HorizResolutionString];
+                    
+                    // put left and right margin into dictionary
+                    NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
+                    NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
+                    int newleftColCount = [leftColCount intValue];
+                    newleftColCount++;
+                    [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
+                    
+                    NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
+                    NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
+                    int newRightColCount = [rightColCount intValue];
+                    newRightColCount++;
+                    [videoSignal_RightMarginSize setValue:@(newRightColCount) forKey:rightMarginString];
+            
+             //release buffers and move onto next frame
+                    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+                    CMSampleBufferInvalidate(sampleBuffer);
+                    CFRelease(sampleBuffer);
+                    free(lumaPixelBufferBase);
+                }
             }
-        }
-        
+            
 
-        if (reader.status == AVAssetReaderStatusFailed)
-        {
-            NSLog(@"AR detection failed...");
-        }
+            if (reader.status == AVAssetReaderStatusFailed)
+            {
+                NSLog(@"AR detection failed...");
+            }
+        });
+                       
     }
     
-    //calcuate resolution
-    NSLog(@"Encoded vertical resolution: %d", (int)resolution.height);
+    dispatch_group_wait(dispatchGroup, DISPATCH_TIME_FOREVER);
     
     NSArray *sortedKeys = [videoSignal_VerResolutionDictionary keysSortedByValueUsingSelector:@selector(compare:)];
     int finalVerticalResolution = [[sortedKeys lastObject] intValue];
     NSLog(@"Most common final vertical resolution: %d, %@ frames.", finalVerticalResolution, [videoSignal_VerResolutionDictionary objectForKey:[sortedKeys lastObject]]);
-    
-    NSLog(@"Encoded horizontal resolution: %d", (int)resolution.width);
     
     sortedKeys = [videoSignal_HorResolutionDictionary keysSortedByValueUsingSelector:@selector(compare:)];
     int finalHorizontalResolution = [[sortedKeys lastObject] intValue];
