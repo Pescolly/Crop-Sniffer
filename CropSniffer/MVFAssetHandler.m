@@ -2,8 +2,9 @@
 
 #define RANGE_COUNT 10
 #define QC_DURATION_FRACTION 1000
-#define BLACK_THRESHHOLD_MACRO 70
+#define UPPER_BLACK_THRESHHOLD 80
 #define HD_VIDEO_BLACK 64
+#define TOP_BOTTOM_MARGIN_DIVISIONS 5
 
 @implementation MVF_AssetHandler
 
@@ -91,14 +92,11 @@
             pixel ++;                                                               //col(pixel) offset
             UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
             
-            if (pixelValue < BLACK_THRESHHOLD)
+            if (pixelValue <= BLACK_THRESHHOLD && pixelValue >= HD_VIDEO_BLACK)
                 blackPixels++;
-            if (pixelValue > BLACK_THRESHHOLD)
-                break;
-            
         }
         //if X percentage of row is black then increment margin
-        if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
+        if (blackPixels > resolution.width / TOP_BOTTOM_MARGIN_DIVISIONS)                                                                  //set video signal top line and break if row is not black
             videoSignal_TopRow++;
         else
             break;
@@ -125,13 +123,11 @@
             
             UInt16 pixelValue = *pixel >> 6;                                            //offset by six bits to convert to 10 bit video
             
-            if (pixelValue < BLACK_THRESHHOLD)
+            if (pixelValue <= BLACK_THRESHHOLD && pixelValue >= HD_VIDEO_BLACK)
                 blackPixels++;
-            if (pixelValue > BLACK_THRESHHOLD)
-                break;
         }
         //if X percentage of row is black then increment margin
-        if (blackPixels > resolution.width / 20)                                                                  //set video signal top line and break if row is not black
+        if (blackPixels > resolution.width / TOP_BOTTOM_MARGIN_DIVISIONS)                                //set video signal top line and break if row is not black
             videoSignal_BottomRow--;
         else
             break;
@@ -251,7 +247,7 @@
                 
                 if(sampleBuffer)
                 {
-                    int BLACK_THRESHHOLD = BLACK_THRESHHOLD_MACRO;
+                    int BLACK_THRESHHOLD = UPPER_BLACK_THRESHHOLD;
                     
                     //setup pixel buffer
                     CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
@@ -289,18 +285,23 @@
                     //add block to dictionary write queue to prevent memory deadlock
                     dispatch_async(dictionaryWriteQ, ^{
                         // put top and bottom margin into dictionary
-                        NSString *topMarginString = [@(videoSignal_TopRow) stringValue];
-                        NSNumber *topRowCount = videoSignal_TopMarginSize[topMarginString];
-                        int newTopRowCount = [topRowCount intValue];
-                        newTopRowCount++;
-                        [videoSignal_TopMarginSize setValue:@(newTopRowCount) forKey:topMarginString];
+                        if (videoSignal_TopRow < resolution.height/2)
+                        {
+                            NSString *topMarginString = [@(videoSignal_TopRow) stringValue];
+                            NSNumber *topRowCount = videoSignal_TopMarginSize[topMarginString];
+                            int newTopRowCount = [topRowCount intValue];
+                            newTopRowCount++;
+                            [videoSignal_TopMarginSize setValue:@(newTopRowCount) forKey:topMarginString];
+                        }
                         
-                        NSString *bottomMarginString = [@(resolution.height - videoSignal_BottomRow) stringValue];
-                        NSNumber *bottomRowCount = videoSignal_BottomMarginSize[bottomMarginString];
-                        int newBottomRowCount = [bottomRowCount intValue];
-                        newBottomRowCount++;
-                        [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
-                        
+                        if (videoSignal_BottomRow > resolution.height/2)
+                        {
+                            NSString *bottomMarginString = [@(resolution.height - videoSignal_BottomRow) stringValue];
+                            NSNumber *bottomRowCount = videoSignal_BottomMarginSize[bottomMarginString];
+                            int newBottomRowCount = [bottomRowCount intValue];
+                            newBottomRowCount++;
+                            [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
+                        }
                         // put left and right margin into dictionary
                         NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
                         NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
