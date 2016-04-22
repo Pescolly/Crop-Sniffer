@@ -1,10 +1,10 @@
 #import "MVFAssetHandler.h"
 
-#define RANGE_COUNT 10
-#define QC_DURATION_FRACTION 1000
-#define UPPER_BLACK_THRESHHOLD 80
-#define HD_VIDEO_BLACK 64
-#define TOP_BOTTOM_MARGIN_DIVISIONS 5
+#define RANGE_COUNT 10                  //number of ranges in feature to check
+#define QC_DURATION_FRACTION 1000       //duration/fraction to determine number of frames to check
+#define UPPER_BLACK_THRESHHOLD 80       //maximum allowed black level
+#define HD_VIDEO_BLACK 64               //lowest allowed black level
+#define TOP_BOTTOM_MARGIN_DIVISIONS 5   //fraction of the screen required before row is considered black
 
 @implementation MVF_AssetHandler
 
@@ -101,6 +101,9 @@
         else
             break;
     }
+    //add two extra lines for SD Material
+    if (resolution.height < 720)
+        videoSignal_TopRow += 2;
     return videoSignal_TopRow;
 }
 
@@ -132,6 +135,8 @@
         else
             break;
     }
+    if (resolution.height < 720)
+        videoSignal_BottomRow -= 2;
     return videoSignal_BottomRow;
 }
 
@@ -162,6 +167,9 @@
         else
             break;
     }
+    if (resolution.height < 720)
+        videoSignal_LeftCol += 2;
+    
     return videoSignal_LeftCol;
 }
 
@@ -192,6 +200,9 @@
         else
             break;
     }
+    if (resolution.height < 720)
+        videoSignal_RightCol -= 2;
+    
     return videoSignal_RightCol;
 }
 
@@ -303,18 +314,23 @@
                             [videoSignal_BottomMarginSize setValue:@(newBottomRowCount) forKey:bottomMarginString];
                         }
                         // put left and right margin into dictionary
-                        NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
-                        NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
-                        int newleftColCount = [leftColCount intValue];
-                        newleftColCount++;
-                        [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
+                        if (videoSignal_LeftCol < resolution.width/2)
+                        {
+                            NSString *leftMarginString = [@(videoSignal_LeftCol) stringValue];
+                            NSNumber *leftColCount = videoSignal_LeftMarginSize[leftMarginString];
+                            int newleftColCount = [leftColCount intValue];
+                            newleftColCount++;
+                            [videoSignal_LeftMarginSize setValue:@(newleftColCount) forKey:leftMarginString];
+                        }
                         
-                        NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
-                        NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
-                        int newRightColCount = [rightColCount intValue];
-                        newRightColCount++;
-                        [videoSignal_RightMarginSize setValue:@(newRightColCount) forKey:rightMarginString];
-                        
+                        if (videoSignal_RightCol > resolution.width/2)
+                        {
+                            NSString *rightMarginString = [@(resolution.width - videoSignal_RightCol) stringValue];
+                            NSNumber *rightColCount = videoSignal_RightMarginSize[rightMarginString];
+                            int newRightColCount = [rightColCount intValue];
+                            newRightColCount++;
+                            [videoSignal_RightMarginSize setValue:@(newRightColCount) forKey:rightMarginString];   
+                        }
                         
                         //put final vertical resolution for frame into dictionary
                         int videoSignal_VertResolution = ((resolution.height - videoSignal_TopRow) - (resolution.height - videoSignal_BottomRow));
