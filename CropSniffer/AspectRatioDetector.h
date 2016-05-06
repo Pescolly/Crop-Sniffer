@@ -13,15 +13,10 @@
 
 
 
-@interface MVF_AssetHandler : NSObject
+@interface AspectRatioDetector : NSObject
 {
     
     //private properties
-@private int frameWidth;
-@private int frameHeight;
-@private int colorMatrix;
-@private NSString *codec;
-@private FourCharCode expectedFormat;
 @private AVURLAsset *asset;
 @private NSMutableDictionary *videoSignal_VerResolutionDictionary;
 @private NSMutableDictionary *videoSignal_HorResolutionDictionary;

@@ -13,7 +13,7 @@
 
 
 #import <Foundation/Foundation.h>
-#import "MVFAssetHandler.h"
+#import "AspectRatioDetector.h"
 
 #define kAR_16X9    @1.78
 #define kAR_4X3     @1.33
@@ -50,7 +50,7 @@ int main(int argc, const char * argv[])
             exit(1);
         }
         
-        MVF_AssetHandler *handler = [[MVF_AssetHandler alloc] initWithFile:incomingFile];
+        AspectRatioDetector *handler = [[AspectRatioDetector alloc] initWithFile:incomingFile];
         [handler VideoFrameAspectRatioDetection];
          
     }

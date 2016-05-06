@@ -1,4 +1,4 @@
-#import "MVFAssetHandler.h"
+#import "AspectRatioDetector.h"
 
 #define RANGE_COUNT 10                  //number of ranges in feature to check
 #define QC_DURATION_FRACTION 1000       //duration/fraction to determine number of frames to check
@@ -6,7 +6,7 @@
 #define HD_VIDEO_BLACK 64               //lowest allowed black level
 #define TOP_BOTTOM_MARGIN_DIVISIONS 5   //fraction of the screen required before row is considered black
 
-@implementation MVF_AssetHandler
+@implementation AspectRatioDetector
 
 - (instancetype)initWithFile:(NSString *)inFilepathString;
 {
@@ -36,21 +36,20 @@
     //setup destination buffer for luma pixels (Y0 Y1 Y2 Y3)
     size_t lumaPixelBufferSize = pixelBufferSize / 2;
     void *lumaPixelBufferBase = malloc(lumaPixelBufferSize);
-    if (lumaPixelBufferBase == NULL)
+    if (lumaPixelBufferBase != NULL)
     {
-        NSLog(@"Coud not allocate memory for luma buffer");
-    }
-    //creation buffer for luma pixels
-    memset(lumaPixelBufferBase, 0, lumaPixelBufferSize);
-    UInt16 *lumaPixelBufferPos = lumaPixelBufferBase;
-    void *lumaPixelBufferEnd = lumaPixelBufferBase + lumaPixelBufferSize;
-    
-    //step pixel pointers thru memory, copy from main buffer to luma pixel buffer
-    while(lumaPixelBufferPos < (UInt16*)lumaPixelBufferEnd)                             //use UInt16 as word size
-    {
-        memcpy(lumaPixelBufferPos, *pixelBufferPos_p, 2);
-        *pixelBufferPos_p += 2;
-        lumaPixelBufferPos += 1;
+        //creation buffer for luma pixels
+        memset(lumaPixelBufferBase, 0, lumaPixelBufferSize);
+        UInt16 *lumaPixelBufferPos = lumaPixelBufferBase;
+        void *lumaPixelBufferEnd = lumaPixelBufferBase + lumaPixelBufferSize;
+        
+        //step pixel pointers thru memory, copy from main buffer to luma pixel buffer
+        while(lumaPixelBufferPos < (UInt16*)lumaPixelBufferEnd)                             //use UInt16 as word size
+        {
+            memcpy(lumaPixelBufferPos, *pixelBufferPos_p, 2);
+            *pixelBufferPos_p += 2;
+            lumaPixelBufferPos += 1;
+        }
     }
     return lumaPixelBufferBase;
 }
@@ -268,14 +267,12 @@
                     CGSize resolution = CGSizeMake(CVPixelBufferGetWidth(pixelBuffer), CVPixelBufferGetHeight(pixelBuffer));
                     
                     //setup source buffer (Cr Y0 Cb Y1)
+                    UInt16 *pixelBufferBaseAddress = (UInt16 *)CVPixelBufferGetBaseAddress(pixelBuffer);
                     size_t pixelBufferSize = CVPixelBufferGetDataSize(pixelBuffer);
-                    void *pixelBufferBaseAddress = (UInt16 *)CVPixelBufferGetBaseAddress(pixelBuffer);
                     UInt16 *pixelBufferPos = pixelBufferBaseAddress;
                     pixelBufferPos++;
                     
-                    void *lumaPixelBufferBase;
-                    lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
-                    
+                    void *lumaPixelBufferBase = [self getLumaPixelBuffer:pixelBufferSize pixelBufferPos_p:&pixelBufferPos];
 
                     //base black level in image in case it is lower than set threshold
                     [self findImageBlack:&BLACK_THRESHHOLD resolution:resolution lumaPixelBufferBase:lumaPixelBufferBase];

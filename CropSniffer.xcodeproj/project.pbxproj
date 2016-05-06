@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		DE9B3AB21C6BB4790011A890 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = DE9B3AB11C6BB4790011A890 /* main.m */; };
-		DE9B3ABA1C6BB4D60011A890 /* MVFAssetHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = DE9B3AB91C6BB4D60011A890 /* MVFAssetHandler.m */; };
+		DE9B3ABA1C6BB4D60011A890 /* AspectRatioDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = DE9B3AB91C6BB4D60011A890 /* AspectRatioDetector.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,8 +26,8 @@
 /* Begin PBXFileReference section */
 		DE9B3AAE1C6BB4790011A890 /* CropSniffer */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = CropSniffer; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE9B3AB11C6BB4790011A890 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		DE9B3AB81C6BB4D60011A890 /* MVFAssetHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MVFAssetHandler.h; sourceTree = "<group>"; };
-		DE9B3AB91C6BB4D60011A890 /* MVFAssetHandler.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MVFAssetHandler.m; sourceTree = "<group>"; };
+		DE9B3AB81C6BB4D60011A890 /* AspectRatioDetector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AspectRatioDetector.h; sourceTree = "<group>"; };
+		DE9B3AB91C6BB4D60011A890 /* AspectRatioDetector.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AspectRatioDetector.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,8 +61,8 @@
 			isa = PBXGroup;
 			children = (
 				DE9B3AB11C6BB4790011A890 /* main.m */,
-				DE9B3AB81C6BB4D60011A890 /* MVFAssetHandler.h */,
-				DE9B3AB91C6BB4D60011A890 /* MVFAssetHandler.m */,
+				DE9B3AB81C6BB4D60011A890 /* AspectRatioDetector.h */,
+				DE9B3AB91C6BB4D60011A890 /* AspectRatioDetector.m */,
 			);
 			path = CropSniffer;
 			sourceTree = "<group>";
@@ -124,7 +124,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DE9B3AB21C6BB4790011A890 /* main.m in Sources */,
-				DE9B3ABA1C6BB4D60011A890 /* MVFAssetHandler.m in Sources */,
+				DE9B3ABA1C6BB4D60011A890 /* AspectRatioDetector.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,6 +243,7 @@
 				DE9B3AB71C6BB4790011A890 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
